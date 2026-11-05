@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Urban Intelligence — Command Center</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+/* ==================================================================
+   AI URBAN INTELLIGENCE PLATFORM -- operations dashboard
+   Single file, no build step.  Every number on this page comes from
+   the backend; nothing is generated client-side for decoration.
+   ================================================================== */
+:root{
+  --bg:#F5F7FA;
+  --panel:#FFFFFF;
+  --panel-2:#F1F4F8;
+  --panel-3:#E6EBF2;
+  --line:#DDE3EC;
+  --line-soft:#E8ECF2;
+  --ink:#1A2233;
+  --ink-2:#576375;
+  --ink-3:#8592A6;
+  --accent:#2F6FED;
+  --accent-dim:#E8F0FE;
+  --info:#5E6B7D;
+  --low:#188556;
+  --medium:#B4740A;
+  --high:#D2622A;
+  --critical:#D93A3F;
+  --ok:#188556;
+  --radius:6px;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Consolas,"Liberation Mono",Menlo,monospace;
+  --sans:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:13.5px;line-height:1.5;-webkit-font-smoothing:antialiased;
+}
+a{color:var(--accent);text-decoration:none}
+button{font-family:inherit;font-size:inherit;color:inherit;background:none;border:none;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#C7D0DD;border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ---------------- shell ---------------- */
+.shell{display:grid;grid-template-columns:212px 1fr;height:100vh}
+aside{
+  background:var(--panel);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;overflow-y:auto;
+}
+.brand{padding:16px 16px 14px;border-bottom:1px solid var(--line)}
+.brand h1{font-size:13px;font-weight:650;letter-spacing:.01em;line-height:1.25}
+.brand span{display:block;font-size:10px;color:var(--ink-3);letter-spacing:.11em;text-transform:uppercase;margin-top:4px}
+nav{padding:10px 8px;display:flex;flex-direction:column;gap:1px;flex:1}
+.nav-group{font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);padding:14px 8px 6px}
+nav a{
+  display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:5px;
+  color:var(--ink-2);font-size:13px;font-weight:450;
+}
+nav a:hover{background:var(--panel-2);color:var(--ink)}
+nav a.on{background:var(--accent-dim);color:#1449B0;font-weight:550}
+nav a .ico{width:15px;text-align:center;opacity:.85;font-size:12px}
+nav a .pill{
+  margin-left:auto;font-family:var(--mono);font-size:10px;
+  background:var(--panel-3);color:var(--ink-2);padding:1px 5px;border-radius:9px;
+}
+nav a.on .pill{background:#D7E6FF;color:#1449B0}
+nav a .pill.alert{background:#FBE1E1;color:#B3242E}
+.side-foot{padding:12px 14px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-3)}
+
+main{display:flex;flex-direction:column;overflow:hidden}
+header.top{
+  display:flex;align-items:center;gap:14px;padding:0 18px;height:50px;
+  border-bottom:1px solid var(--line);background:var(--panel);flex:none;
+}
+header.top h2{font-size:14.5px;font-weight:600}
+header.top .sub{font-size:11.5px;color:var(--ink-3)}
+.spacer{flex:1}
+.status{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ink-2)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.dot.bad{background:var(--critical)}
+.btn{
+  border:1px solid var(--line);background:var(--panel-2);padding:5px 11px;
+  border-radius:5px;font-size:12px;color:var(--ink-2);
+}
+.btn:hover{border-color:#B7C1D1;color:var(--ink)}
+.btn.on{background:var(--accent-dim);border-color:#9CC0FF;color:#1449B0}
+.view{padding:18px;overflow-y:auto;flex:1}
+
+/* ---------------- primitives ---------------- */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius)}
+.card > h3{
+  font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);
+  padding:11px 14px;border-bottom:1px solid var(--line-soft);font-weight:600;
+  display:flex;align-items:center;gap:8px;
+}
+.card > h3 .right{margin-left:auto;font-size:10.5px;letter-spacing:0;text-transform:none;color:var(--ink-2)}
+.card .body{padding:14px}
+.grid{display:grid;gap:12px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:13px 15px;position:relative;overflow:hidden}
+.kpi .k{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.kpi .v{font-size:27px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.02em;margin-top:5px;line-height:1.05}
+.kpi .n{font-size:11px;color:var(--ink-3);margin-top:3px}
+.kpi::after{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--line)}
+.kpi.crit::after{background:var(--critical)}
+.kpi.high::after{background:var(--high)}
+.kpi.med::after{background:var(--medium)}
+.kpi.ok::after{background:var(--low)}
+.kpi.acc::after{background:var(--accent)}
+
+/* badges */
+.sev{
+  display:inline-block;font-size:10px;font-weight:650;letter-spacing:.06em;
+  padding:2px 6px;border-radius:3px;border:1px solid currentColor;white-space:nowrap;
+}
+.sev.INFO{color:var(--info)} .sev.LOW{color:var(--low)} .sev.MEDIUM{color:var(--medium)}
+.sev.HIGH{color:var(--high)} .sev.CRITICAL{color:var(--critical)}
+.tag{
+  display:inline-block;font-size:10.5px;padding:2px 7px;border-radius:3px;
+  background:var(--panel-3);color:var(--ink-2);white-space:nowrap;
+}
+.tag.state{font-family:var(--mono);font-size:10px;letter-spacing:.02em}
+.tag.confirmed{background:#FBE1E1;color:#B3242E}
+.tag.suspected{background:#FBF0D9;color:#8A6212}
+.tag.synthetic{background:#E3F1FF;color:#1668A8;border:1px solid #A9D4F5;font-weight:650;letter-spacing:.05em}
+.synthbanner{
+  background:#EAF3FF;border:1px solid #BBDCFF;border-left:3px solid var(--accent);
+  color:#245A9E;padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:12.5px;
+}
+.synthbanner b{color:#1668A8}
+.mono{font-family:var(--mono);font-size:12px}
+.id{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);background:var(--panel-3);padding:1px 6px;border-radius:3px}
+
+/* tables */
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{
+  text-align:left;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:600;padding:8px 12px;border-bottom:1px solid var(--line);
+  background:var(--panel-2);position:sticky;top:0;white-space:nowrap;z-index:1;
+}
+td{padding:8px 12px;border-bottom:1px solid var(--line-soft);vertical-align:middle;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tbody tr.clickable{cursor:pointer}
+tbody tr.clickable:hover{background:var(--panel-2)}
+td.num{font-variant-numeric:tabular-nums;text-align:right}
+.thumb{width:54px;height:34px;object-fit:cover;border-radius:3px;border:1px solid var(--line);background:var(--panel-3);display:block}
+
+/* states */
+.empty,.loading,.errorbox{
+  padding:34px 20px;text-align:center;color:var(--ink-3);font-size:12.5px;
+}
+.empty strong{display:block;color:var(--ink-2);font-size:13.5px;margin-bottom:5px;font-weight:550}
+.errorbox{color:#C6323B}
+.skel{height:11px;border-radius:3px;background:linear-gradient(90deg,#EDF1F6,#E2E8F0,#EDF1F6);
+  background-size:200% 100%;animation:sh 1.3s infinite}
+@keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.skelrow{display:flex;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line-soft)}
+.skelrow .skel:nth-child(1){width:16%} .skelrow .skel:nth-child(2){width:22%}
+.skelrow .skel:nth-child(3){width:14%} .skelrow .skel:nth-child(4){width:30%}
+
+/* map */
+#map,#mapFull{width:100%;background:var(--panel-2);border-radius:var(--radius)}
+#map{height:330px} #mapFull{height:calc(100vh - 178px)}
+.leaflet-container{background:#E9EEF5}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel-2);color:var(--ink);border-radius:5px}
+.leaflet-popup-content{margin:10px 12px;font-size:12px;font-family:var(--sans)}
+.leaflet-popup-content b{color:var(--ink)}
+.mapfallback{padding:12px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-2);padding:10px 14px;border-top:1px solid var(--line-soft)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+
+/* charts */
+svg.chart{display:block;width:100%;height:auto;overflow:visible}
+.chart text{fill:var(--ink-3);font-size:9.5px;font-family:var(--sans)}
+.chart .grid line{stroke:var(--line-soft)}
+.bar{fill:var(--accent)}
+.barlabel{fill:var(--ink-2);font-size:10px}
+
+/* incident detail */
+.detail{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:12px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:12.5px}
+.kv dt{color:var(--ink-3);white-space:nowrap}
+.kv dd{color:var(--ink);word-break:break-word}
+.timeline{position:relative;padding-left:20px}
+.timeline::before{content:"";position:absolute;left:5px;top:5px;bottom:6px;width:1px;background:var(--line)}
+.tstep{position:relative;padding:0 0 13px}
+.tstep::before{
+  content:"";position:absolute;left:-19px;top:5px;width:9px;height:9px;border-radius:50%;
+  background:var(--panel);border:2px solid var(--ink-3);
+}
+.tstep.hit::before{border-color:var(--critical);background:var(--critical)}
+.tstep.leave::before{border-color:var(--high)}
+.tstep .st{font-family:var(--mono);font-size:11px;color:var(--ink);letter-spacing:.02em}
+.tstep .tm{font-family:var(--mono);font-size:10.5px;color:var(--accent);margin-right:8px}
+.tstep .nt{font-size:11.5px;color:var(--ink-3);margin-top:2px}
+.evidence-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:9px}
+.evidence-strip figure{border:1px solid var(--line);border-radius:5px;overflow:hidden;background:var(--panel-2)}
+.evidence-strip img,.evidence-strip video{width:100%;height:82px;object-fit:cover;display:block;background:#E9EEF5}
+.evidence-strip figcaption{font-size:10px;color:var(--ink-3);padding:5px 7px;text-transform:uppercase;letter-spacing:.07em}
+
+/* live page */
+.live{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px}
+.live video{width:100%;display:block;border-radius:var(--radius);background:#000}
+.eventfeed{max-height:calc(100vh - 210px);overflow-y:auto}
+.feeditem{padding:9px 13px;border-bottom:1px solid var(--line-soft);display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.feeditem:hover{background:var(--panel-2)}
+.feeditem.active{background:var(--accent-dim)}
+.feeditem .t{font-family:var(--mono);font-size:10.5px;color:var(--accent);flex:none;padding-top:1px}
+.feeditem .x{flex:1;min-width:0}
+.feeditem .x b{display:block;font-size:12px;font-weight:550}
+.feeditem .x span{font-size:11px;color:var(--ink-3)}
+
+/* filters */
+.filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.filters .lbl{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-right:2px}
+input[type=search]{
+  background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+  padding:5px 10px;border-radius:5px;font-size:12px;min-width:190px;
+}
+
+/* toasts */
+#toasts{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:9999}
+.toast{
+  background:var(--panel-2);border:1px solid var(--line);border-left:3px solid var(--accent);
+  padding:10px 14px;border-radius:5px;font-size:12.5px;min-width:230px;max-width:340px;
+  box-shadow:0 8px 26px rgba(15,23,42,.14);animation:tin .22s ease-out;
+}
+.toast.err{border-left-color:var(--critical)}
+.toast.ok{border-left-color:var(--low)}
+.toast b{display:block;margin-bottom:2px}
+.toast span{color:var(--ink-3);font-size:11.5px}
+@keyframes tin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+@media (max-width:1100px){
+  .detail,.live{grid-template-columns:1fr}
+  .shell{grid-template-columns:64px 1fr}
+  .brand h1,.brand span,nav a span.lbl,.nav-group,.side-foot{display:none}
+  nav a{justify-content:center}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <aside>
+    <div class="brand">
+      <h1>Urban Intelligence</h1>
+      <span>Command Center</span>
+    </div>
+    <nav id="nav"></nav>
+    <div class="side-foot" id="sideFoot">—</div>
+  </aside>
+
+  <main>
+    <header class="top">
+      <div>
+        <h2 id="viewTitle">Dashboard</h2>
+        <div class="sub" id="viewSub">—</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="status"><span class="dot" id="healthDot"></span><span id="healthText">connecting…</span></div>
+      <button class="btn" id="refreshBtn">Refresh</button>
+      <button class="btn" id="autoBtn">Auto-refresh: off</button>
+    </header>
+    <section class="view" id="view"></section>
+  </main>
+</div>
+
+<div id="toasts"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+"use strict";
+
+/* ==================================================================
+   1.  API layer
+   ================================================================== */
+const API = "";
+const cache = new Map();
+
+async function api(path, {fresh=false, method="GET", body=null}={}){
+  if(method === "GET" && !fresh && cache.has(path)) return cache.get(path);
+  const opts = {method};
+  if(body) { opts.headers = {"Content-Type":"application/json"}; opts.body = JSON.stringify(body); }
+  const res = await fetch(API + path, opts);
+  if(!res.ok) throw new Error(`${res.status} ${res.statusText} — ${path}`);
+  const data = await res.json();
+  if(method === "GET") cache.set(path, data);
+  return data;
+}
+function clearCache(){ cache.clear(); }
+
+/* ==================================================================
+   2.  Small helpers
+   ================================================================== */
+const $ = (sel, root=document) => root.querySelector(sel);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => (
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num = n => (n === null || n === undefined || n === "") ? "–"
+  : (typeof n === "number" ? n.toLocaleString(undefined,{maximumFractionDigits:2}) : n);
+const pct = n => n === null || n === undefined ? "–" : `${Math.round(n)}%`;
+
+function clock(ts){
+  if(!ts) return "–";
+  const d = new Date(ts);
+  if(isNaN(d)) return String(ts).slice(11,19);
+  return d.toLocaleTimeString([], {hour12:false});
+}
+function stamp(ts){
+  if(!ts) return "–";
+  const d = new Date(ts);
+  if(isNaN(d)) return String(ts);
+  return d.toLocaleString([], {month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false});
+}
+const vtime = s => (s === null || s === undefined) ? "–"
+  : `${String(Math.floor(s/60)).padStart(2,"0")}:${String(Math.floor(s%60)).padStart(2,"0")}`;
+const title = s => String(s||"").replace(/_/g," ").replace(/\b\w/g, c => c.toUpperCase());
+const sev = s => `<span class="sev ${esc(s||"INFO")}">${esc(s||"INFO")}</span>`;
+// /events returns gps nested; /issues and /heatmap return it flattened.
+function latlon(e){
+  const g = e && e.gps;
+  const lat = (g && g.latitude != null) ? g.latitude : e.latitude;
+  const lon = (g && g.longitude != null) ? g.longitude : e.longitude;
+  return (lat == null || lon == null) ? null : [+lat, +lon];
+}
+const gps = e => { const p = latlon(e);
+  return p ? `${p[0].toFixed(5)}, ${p[1].toFixed(5)}` : "–"; };
+const meta = e => e.metadata || {};
+
+function thumb(path, alt="evidence"){
+  if(!path) return `<span class="tag">none</span>`;
+  return `<img class="thumb" loading="lazy" src="/evidence/${encodeURI(path)}" alt="${esc(alt)}"
+          onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'tag',textContent:'missing'}))">`;
+}
+
+function toast(text, detail="", kind=""){
+  const el = document.createElement("div");
+  el.className = "toast " + kind;
+  el.innerHTML = `<b>${esc(text)}</b>${detail ? `<span>${esc(detail)}</span>` : ""}`;
+  $("#toasts").appendChild(el);
+  setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 300); }, 4200);
+}
+
+const loading = (rows=5) => `<div class="tablewrap">${
+  Array.from({length:rows}, () => `<div class="skelrow">
+    <div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>`).join("")}</div>`;
+
+const empty = (head, note) => `<div class="empty"><strong>${esc(head)}</strong>${esc(note||"")}</div>`;
+const errorBox = e => `<div class="errorbox"><strong>Could not load this view</strong><br>${esc(e.message||e)}</div>`;
+
+function card(title, bodyHtml, {right="", pad=true}={}){
+  return `<div class="card">
+    <h3>${esc(title)}${right ? `<span class="right">${right}</span>` : ""}</h3>
+    ${pad ? `<div class="body">${bodyHtml}</div>` : bodyHtml}
+  </div>`;
+}
+
+function table(cols, rows, rowFn, {onclick=null}={}){
+  if(!rows.length) return empty("Nothing recorded yet", "Run the pipeline over a video and this table fills in.");
+  return `<div class="tablewrap"><table>
+    <thead><tr>${cols.map(c => `<th>${esc(c)}</th>`).join("")}</tr></thead>
+    <tbody>${rows.map((r,i) => `<tr class="${onclick?"clickable":""}" ${onclick?`data-idx="${i}"`:""}>${rowFn(r)}</tr>`).join("")}</tbody>
+  </table></div>`;
+}
+
+/* ==================================================================
+   3.  Charts  (hand-drawn SVG, from real backend rows only)
+   ================================================================== */
+function barChart(pairs, {height=null, color="var(--accent)"}={}){
+  if(!pairs.length) return empty("No data yet","");
+  const max = Math.max(...pairs.map(p => p[1]), 1);
+  const rowH = 22, h = height || pairs.length * rowH + 6;
+  const labelW = 152;
+  return `<svg class="chart" viewBox="0 0 520 ${h}" role="img">
+    ${pairs.map(([k,v],i) => {
+      const y = i*rowH + 4, w = Math.max(2, (v/max) * (520-labelW-46));
+      return `<g>
+        <text x="0" y="${y+11}" class="barlabel">${esc(title(k)).slice(0,26)}</text>
+        <rect x="${labelW}" y="${y+2}" width="${w}" height="11" rx="2" fill="${color}" opacity="0.85"></rect>
+        <text x="${labelW+w+7}" y="${y+11}" class="barlabel" style="fill:var(--ink)">${v}</text>
+      </g>`;
+    }).join("")}
+  </svg>`;
+}
+
+function lineChart(points, {label="", unit=""}={}){
+  const vals = points.map(p => p.v).filter(v => v != null);
+  if(vals.length < 2) return empty("Not enough samples yet",
+    "The traffic module writes an observation every few seconds of video.");
+  const W = 640, H = 150, pad = {l:34, r:10, t:12, b:20};
+  const max = Math.max(...vals), min = Math.min(0, Math.min(...vals));
+  const span = (max - min) || 1;
+  const x = i => pad.l + i * (W - pad.l - pad.r) / (points.length - 1);
+  const y = v => pad.t + (H - pad.t - pad.b) * (1 - (v - min) / span);
+  const d = points.map((p,i) => `${i?"L":"M"}${x(i).toFixed(1)},${y(p.v ?? min).toFixed(1)}`).join("");
+  const area = `${d}L${x(points.length-1).toFixed(1)},${y(min)}L${x(0).toFixed(1)},${y(min)}Z`;
+  const ticks = [min, min+span/2, max];
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}">
+    <g class="grid">${ticks.map(t => `<line x1="${pad.l}" x2="${W-pad.r}" y1="${y(t)}" y2="${y(t)}"></line>`).join("")}</g>
+    ${ticks.map(t => `<text x="0" y="${y(t)+3}">${Math.round(t)}</text>`).join("")}
+    <path d="${area}" fill="var(--accent)" opacity="0.13"></path>
+    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round"></path>
+    <circle cx="${x(points.length-1)}" cy="${y(points[points.length-1].v ?? min)}" r="3" fill="var(--accent)"></circle>
+    <text x="${pad.l}" y="${H-5}">${esc(points[0].t)}</text>
+    <text x="${W-pad.r}" y="${H-5}" text-anchor="end">${esc(points[points.length-1].t)}${unit?" "+esc(unit):""}</text>
+  </svg>`;
+}
+
+/* ==================================================================
+   4.  Map  (Leaflet when reachable, SVG scatter when not)
+   ================================================================== */
+const SEV_COLOR = {CRITICAL:"#D93A3F",HIGH:"#D2622A",MEDIUM:"#B4740A",LOW:"#188556",INFO:"#5E6B7D"};
+const KIND_COLOR = {
+  road_defect:"#D2622A", traffic:"#2F6FED", incident:"#D93A3F",
+  hit_and_run:"#E23B4A", issue:"#B4740A"
+};
+let mapObj = null, mapLayer = null;
+
+function renderMap(elId, markers){
+  const el = document.getElementById(elId);
+  if(!el) return;
+  if(!markers.length){
+    el.innerHTML = `<div class="mapfallback">${empty("No located events yet",
+      "Events carry GPS from the bus feed; run the pipeline to populate the map.")}</div>`;
+    return;
+  }
+  if(typeof L === "undefined"){          // offline / CDN blocked -> SVG fallback
+    el.innerHTML = svgScatter(markers);
+    return;
+  }
+  if(mapObj){ mapObj.remove(); mapObj = null; }
+  mapObj = L.map(elId, {zoomControl:true, attributionControl:false});
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom:19})
+   .addTo(mapObj)
+   .on("tileerror", () => { /* tiles unreachable: markers still render on the grey ground */ });
+  mapLayer = L.layerGroup().addTo(mapObj);
+  const bounds = [];
+  markers.forEach(m => {
+    bounds.push([m.lat, m.lon]);
+    L.circleMarker([m.lat, m.lon], {
+      radius: m.kind === "hit_and_run" ? 9 : 6,
+      color: m.color, fillColor: m.color, fillOpacity: .75, weight: m.kind === "hit_and_run" ? 3 : 1.5,
+    }).addTo(mapLayer).bindPopup(m.popup);
+  });
+  mapObj.fitBounds(bounds, {padding:[28,28], maxZoom:17});
+}
+
+function svgScatter(markers){
+  const lats = markers.map(m => m.lat), lons = markers.map(m => m.lon);
+  const minLa = Math.min(...lats), maxLa = Math.max(...lats);
+  const minLo = Math.min(...lons), maxLo = Math.max(...lons);
+  const W = 900, H = 320, pad = 26;
+  const px = lo => pad + ((lo - minLo) / ((maxLo - minLo) || 1)) * (W - 2*pad);
+  const py = la => H - pad - ((la - minLa) / ((maxLa - minLa) || 1)) * (H - 2*pad);
+  return `<div class="mapfallback">
+    <svg class="chart" viewBox="0 0 ${W} ${H}">
+      <rect x="0" y="0" width="${W}" height="${H}" fill="#F1F4F9" rx="6"></rect>
+      ${markers.map(m => `<circle cx="${px(m.lon).toFixed(1)}" cy="${py(m.lat).toFixed(1)}"
+          r="${m.kind==="hit_and_run"?7:5}" fill="${m.color}" fill-opacity="0.8"
+          stroke="${m.color}"><title>${esc(m.title)}</title></circle>`).join("")}
+      <text x="${pad}" y="${H-8}">${minLo.toFixed(4)}</text>
+      <text x="${W-pad}" y="${H-8}" text-anchor="end">${maxLo.toFixed(4)}</text>
+    </svg>
+    <div class="legend">Map tiles unavailable — plotting GPS positions directly.
+      Latitude ${minLa.toFixed(4)} to ${maxLa.toFixed(4)}.</div>
+  </div>`;
+}
+
+function eventMarkers(events){
+  return events.map(e => [e, latlon(e)]).filter(([,p]) => p).map(([e,p]) => {
+    const kind = e.event_type === "hit_and_run" ? "hit_and_run"
+      : e.event_type === "road_defect" ? "road_defect"
+      : e.event_type.startsWith("traffic") ? "traffic" : "incident";
+    return {
+      lat:p[0], lon:p[1], kind,
+      color: SEV_COLOR[e.severity] || KIND_COLOR[kind],
+      title: `${title(e.event_type)} — ${e.class_name||""}`,
+      popup: `<b>${esc(title(e.event_type))}</b><br>
+        ${esc(e.class_name||"")} ${e.track_id!=null?`· track #${e.track_id}`:""}<br>
+        ${esc(stamp(e.timestamp))}<br>
+        conf ${(+e.confidence||0).toFixed(2)} · ${esc(e.severity||"")}<br>
+        ${esc(e.bus_id||"")} / ${esc(e.camera_id||"")}<br>
+        ${e.issue_id?`issue <b>${esc(e.issue_id)}</b><br>`:""}
+        ${meta(e).registration_number?`plate <b>${esc(meta(e).registration_number)}</b>`:""}`,
+    };
+  });
+}
+
+/* ==================================================================
+   5.  Views
+   ================================================================== */
+const ROUTES = [
+  {id:"dashboard", label:"Dashboard",      ico:"▣", group:"Overview"},
+  {id:"live",      label:"Live Analysis",  ico:"▶"},
+  {id:"map",       label:"GIS Map",        ico:"◎"},
+  {id:"incidents", label:"Incidents",      ico:"⚠", group:"Operations", badge:"incidents"},
+  {id:"hitrun",    label:"Hit-and-Run",    ico:"⛔", badge:"hitrun"},
+  {id:"anpr",      label:"Vehicles / ANPR",ico:"▤"},
+  {id:"traffic",   label:"Traffic",        ico:"≋", group:"Infrastructure"},
+  {id:"road",      label:"Road Assets",    ico:"◫", badge:"defects"},
+  {id:"issues",    label:"Persistent Issues", ico:"◈"},
+  {id:"analytics", label:"Analytics",      ico:"◧"},
+  {id:"news",      label:"Civic News & Feed", ico:"📰", group:"Social Intelligence"},
+];
+
+const views = {};
+
+/* ---------------------------------------------- Dashboard */
+views.dashboard = async () => {
+  const [an, ev, hm, incidents] = await Promise.all([
+    api("/analytics"), api("/events?limit=250"), api("/heatmap"), api("/incidents?limit=40"),
+  ]);
+  const byType = an.events_by_type || {};
+  const hitruns = byType.hit_and_run || 0;
+  const defects = byType.road_defect || 0;
+  const activeIncidents = incidents.filter(i => (meta(i).status || "suspected") !== "cleared").length;
+  const congestion = (an.events_by_severity || {});
+  const heavy = (byType.traffic_congestion || 0) + (byType.traffic_bottleneck || 0);
+  const openIssues = (an.issues_by_status || {}).OPEN || 0;
+
+  const timeline = (an.traffic_timeline || []).map(r => ({
+    t: vtime(r.video_time_s), v: r.vehicle_count,
+  }));
+
+  const kpis = `<div class="kpis">
+    ${kpi("Total events", an.events_total, "across all modules", "acc")}
+    ${kpi("Active incidents", activeIncidents, "collision · rash · hit-and-run", activeIncidents?"high":"")}
+    ${kpi("Hit-and-run alerts", hitruns, hitruns?"identification requested":"none detected", hitruns?"crit":"ok")}
+    ${kpi("Road defects", defects, "reported by module 1", defects?"med":"")}
+    ${kpi("Congestion events", heavy, "high / critical traffic", heavy?"med":"")}
+    ${kpi("Persistent issues", openIssues, `${an.issues_total||0} tracked in total`, "acc")}
+  </div>`;
+
+  const markers = eventMarkers(ev);
+  const recentIncidents = incidents.slice(0,7);
+
+  return kpis + `
+  <div class="grid" style="grid-template-columns:minmax(0,1fr);margin-top:12px">
+    ${card("Event locations", `<div id="map"></div>
+      <div class="legend">
+        <span><i style="background:#D93A3F"></i>Incident</span>
+        <span><i style="background:#E23B4A"></i>Hit-and-run</span>
+        <span><i style="background:#D2622A"></i>Road defect</span>
+        <span><i style="background:#2F6FED"></i>Traffic</span>
+        <span style="color:var(--ink-3)">${markers.length} located events</span>
+      </div>`, {pad:false, right:`${ev.length} events loaded`})}
+  </div>
+  <div class="grid" style="grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);margin-top:12px">
+    ${card("Traffic over the run", lineChart(timeline, {label:"vehicles per observation"}),
+        {right: timeline.length ? `${timeline.length} observations` : ""})}
+    ${card("Events by type", barChart(Object.entries(byType).sort((a,b)=>b[1]-a[1])))}
+  </div>
+  <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin-top:12px">
+    ${card("Recent incidents", table(
+      ["Time","Type","Vehicle","Confidence","Status"], recentIncidents,
+      i => `<td class="mono">${clock(i.timestamp)}</td>
+            <td>${title(i.event_type)}</td>
+            <td class="mono">#${i.track_id ?? "–"} ${esc(i.class_name||"")}</td>
+            <td class="num">${(+i.confidence||0).toFixed(2)}</td>
+            <td>${statusTag(i)}</td>`), {pad:false,
+      right:`<a href="#incidents">view all</a>`})}
+    ${card("Priority issues", table(
+      ["Issue","Type","Obs","Priority","Department"], (an.top_issues||[]).slice(0,7),
+      i => `<td><span class="id">${esc(i.issue_id)}</span></td>
+            <td>${title(i.issue_type)}</td>
+            <td class="num">${i.observation_count}</td>
+            <td class="num">${(+i.priority_score||0).toFixed(0)}</td>
+            <td>${esc(i.department||"–")}</td>`), {pad:false,
+      right:`<a href="#issues">view all</a>`})}
+  </div>`;
+};
+views.dashboard.after = async () => {
+  const ev = await api("/events?limit=250");
+  renderMap("map", eventMarkers(ev));
+};
+
+function kpi(label, value, note, cls=""){
+  return `<div class="kpi ${cls}"><div class="k">${esc(label)}</div>
+    <div class="v">${num(value ?? 0)}</div><div class="n">${esc(note||"")}</div></div>`;
+}
+function statusTag(i){
+  const s = meta(i).status || "suspected";
+  const synth = meta(i).synthetic ? `<span class="tag synthetic" title="scripted demo scenario, not a detection">SYNTHETIC</span> ` : "";
+  return `${synth}<span class="tag ${s === "confirmed" ? "confirmed" : "suspected"}">${esc(s)}</span>`;
+}
+const anySynthetic = rows => rows.some(r => meta(r).synthetic);
+const synthBanner = rows => anySynthetic(rows) ? `<div class="synthbanner">
+  <b>Some records below are marked SYNTHETIC.</b> They were produced by
+  <code class="mono">scripts/demo_hit_and_run.py</code> or <code class="mono">--demo-incident</code>:
+  the detection, state-machine, ANPR and database code is real, the vehicle positions are scripted.
+  They are demonstrations, not detections.</div>` : "";
+
+/* ---------------------------------------------- Live analysis */
+views.live = async () => {
+  const [vids, ev] = await Promise.all([api("/videos"), api("/events?limit=400")]);
+  const list = vids.videos || [];
+  const timed = ev.filter(e => e.video_time_s != null)
+                  .sort((a,b) => a.video_time_s - b.video_time_s);
+
+  if(!list.length){
+    return card("Live / video analysis", empty(
+      "No annotated video yet",
+      "Run the pipeline without --no-video and the annotated .mp4 appears here, "
+      + "with the event feed synchronised to the timeline."));
+  }
+
+  const options = list.map(v => `<option value="${esc(v.url)}">${esc(v.name)} — ${v.size_mb} MB</option>`).join("");
+  return `<div class="filters">
+      <span class="lbl">Recording</span>
+      <select id="vidSelect" class="btn">${options}</select>
+      <span class="lbl" style="margin-left:10px">${timed.length} timestamped events</span>
+    </div>
+    <div class="live">
+      ${card("Annotated detection output",
+        `<video id="liveVideo" controls preload="metadata" src="${esc(list[0].url)}"></video>
+         <div class="legend" style="border-top:none;padding-left:0">
+           <span><i style="background:#00DC00"></i>Vehicle + track id</span>
+           <span><i style="background:#0096FF"></i>Road defect</span>
+           <span><i style="background:#00C8FF"></i>Post-collision monitoring</span>
+         </div>`)}
+      ${card("Event feed", `<div class="eventfeed" id="feed">${
+        timed.length ? timed.map((e,i) => `
+          <div class="feeditem" data-i="${i}" data-t="${e.video_time_s}">
+            <span class="t">${vtime(e.video_time_s)}</span>
+            <span class="x">
+              <b>${feedIcon(e.event_type)} ${title(e.event_type)}</b>
+              <span>${esc(e.class_name||"")}${e.track_id!=null?` · track #${e.track_id}`:""}
+                    · conf ${(+e.confidence||0).toFixed(2)}
+                    ${meta(e).registration_number?` · ${esc(meta(e).registration_number)}`:""}</span>
+            </span>
+          </div>`).join("")
+        : empty("No timestamped events","")
+      }</div>`, {pad:false, right:"click to seek"})}
+    </div>`;
+};
+views.live.after = () => {
+  const video = $("#liveVideo"), feed = $("#feed"), select = $("#vidSelect");
+  if(select) select.onchange = () => { video.src = select.value; video.load(); };
+  if(!video || !feed) return;
+  feed.querySelectorAll(".feeditem").forEach(item => {
+    item.onclick = () => {
+      video.currentTime = Math.max(0, parseFloat(item.dataset.t) - 1.5);
+      video.play().catch(() => {});
+    };
+  });
+  video.ontimeupdate = () => {
+    const t = video.currentTime;
+    let active = null;
+    feed.querySelectorAll(".feeditem").forEach(item => {
+      const it = parseFloat(item.dataset.t);
+      item.classList.remove("active");
+      if(it <= t + 0.35) active = item;
+    });
+    if(active){
+      active.classList.add("active");
+      const box = feed.getBoundingClientRect(), row = active.getBoundingClientRect();
+      if(row.top < box.top || row.bottom > box.bottom) active.scrollIntoView({block:"nearest"});
+    }
+  };
+};
+const feedIcon = t => ({
+  hit_and_run:"⛔", collision:"⚠", possible_collision:"⚠", rash_driving:"⚡",
+  abnormal_movement:"⚡", vehicle_identification:"▤", road_defect:"◫",
+}[t] || "•");
+
+/* ---------------------------------------------- Incidents */
+let incidentFilter = "all";
+views.incidents = async () => {
+  const q = incidentFilter === "all" ? "" : `&event_type=${incidentFilter}`;
+  const rows = await api(`/incidents?limit=300${q}`);
+  const chips = [
+    ["all","All"],["collision","Collision"],["hit_and_run","Hit-and-run"],
+    ["rash_driving","Rash driving"],["possible","Possible incident"],
+  ].map(([v,l]) => `<button class="btn ${incidentFilter===v?"on":""}" data-f="${v}">${l}</button>`).join("");
+
+  return synthBanner(rows) + `<div class="filters"><span class="lbl">Filter</span>${chips}
+      <span class="lbl" style="margin-left:auto">${rows.length} records</span></div>
+    ${card("Incident register", table(
+      ["Incident","Type","Status","Conf","Time","Vehicle","Plate","Location","Evidence"], rows,
+      r => `<td><span class="id">${esc(meta(r).incident_id || r.event_id.slice(0,8))}</span></td>
+            <td>${feedIcon(r.event_type)} ${title(r.event_type)}</td>
+            <td>${statusTag(r)}</td>
+            <td class="num">${(+r.confidence||0).toFixed(2)}</td>
+            <td class="mono">${stamp(r.timestamp)}</td>
+            <td class="mono">#${r.track_id ?? "–"} ${esc(r.class_name||"")}</td>
+            <td class="mono">${esc(meta(r).registration_number || "–")}</td>
+            <td class="mono">${gps(r)}</td>
+            <td>${thumb(r.evidence_image)}</td>`,
+      {onclick:true}), {pad:false})}
+    <div id="incidentDetail" style="margin-top:12px"></div>`;
+};
+views.incidents.after = async () => {
+  document.querySelectorAll("[data-f]").forEach(b => b.onclick = () => {
+    incidentFilter = b.dataset.f; render();
+  });
+  const q = incidentFilter === "all" ? "" : `&event_type=${incidentFilter}`;
+  const rows = await api(`/incidents?limit=300${q}`);
+  document.querySelectorAll("tbody tr.clickable").forEach(tr => {
+    tr.onclick = () => openIncident(rows[+tr.dataset.idx], "#incidentDetail");
+  });
+};
+
+async function openIncident(row, target){
+  const host = $(target);
+  if(!row || !host) return;
+  host.innerHTML = card("Incident detail", loading(3), {pad:false});
+  const id = meta(row).incident_id || row.event_id;
+  try{
+    const d = await api(`/incidents/${encodeURIComponent(id)}`, {fresh:true});
+    host.innerHTML = incidentDetailHtml(d);
+    host.scrollIntoView({behavior:"smooth", block:"nearest"});
+  }catch(e){
+    host.innerHTML = card("Incident detail", errorBox(e));
+  }
+}
+
+function incidentDetailHtml(d){
+  const i = d.incident, m = meta(i), ident = d.identification;
+  const plate = ident ? meta(ident).registration_number : m.registration_number;
+  const conf = ident ? meta(ident).plate_confidence : m.plate_confidence;
+
+  const facts = `<dl class="kv">
+    <dt>Incident</dt><dd><span class="id">${esc(d.incident_id)}</span></dd>
+    <dt>Type</dt><dd>${title(i.event_type)}</dd>
+    <dt>Status</dt><dd>${statusTag(i)} ${m.state?`<span class="tag state">${esc(m.state)}</span>`:""}</dd>
+    ${m.synthetic?`<dt>Provenance</dt><dd style="color:#1668A8">${esc(m.synthetic_note||"scripted demo scenario — not a detection")}</dd>`:""}
+    <dt>Confidence</dt><dd>${(+i.confidence||0).toFixed(2)} · ${sev(i.severity)}</dd>
+    <dt>Time</dt><dd class="mono">${stamp(i.timestamp)} · video ${vtime(i.video_time_s)}</dd>
+    <dt>Bus / camera</dt><dd class="mono">${esc(i.bus_id||"–")} / ${esc(i.camera_id||"–")}</dd>
+    <dt>Location</dt><dd class="mono">${gps(i)}${i.road_segment?` · ${esc(i.road_segment)}`:""}</dd>
+    <dt>Vehicle</dt><dd class="mono">track #${m.vehicle_track_id ?? i.track_id ?? "–"} · ${esc(m.vehicle_class||i.class_name||"–")}</dd>
+    ${m.other_track_id!=null?`<dt>Other party</dt><dd class="mono">track #${esc(m.other_track_id)} · ${esc(m.other_type||"")}</dd>`:""}
+    <dt>Registration</dt><dd class="mono">${plate ? `<b>${esc(plate)}</b> ${conf!=null?`(${(+conf).toFixed(2)})`:""}` : "not requested"}</dd>
+    <dt>Detector</dt><dd class="mono">${esc(m.detector||"–")}</dd>
+    ${m.escape_distance_px!=null?`<dt>Escape</dt><dd class="mono">${num(m.escape_distance_px)} px at ${num(m.escape_speed_px_s)} px/s, ${esc(m.escape_direction||"")}</dd>`:""}
+    ${m.iou!=null?`<dt>Contact</dt><dd class="mono">IoU ${num(m.iou)} · approach ${num(m.approach)} · motion ${num(m.motion_change)}</dd>`:""}
+    <dt>Evidence basis</dt><dd>${esc(m.evidence||"–")}</dd>
+  </dl>`;
+
+  const steps = (d.timeline||[]).length ? `<div class="timeline">${
+    d.timeline.map(s => `<div class="tstep ${s.state==="HIT_AND_RUN_CONFIRMED"?"hit":s.state==="VEHICLE_LEAVING"?"leave":""}">
+        <div><span class="tm">${vtime(s.video_time_s)}</span><span class="st">${esc(s.state)}</span></div>
+        ${s.note?`<div class="nt">${esc(s.note)}</div>`:""}
+      </div>`).join("")}</div>`
+    : empty("No state transitions recorded","This incident type does not run the hit-and-run state machine.");
+
+  const ev = d.evidence || {};
+  const shots = [
+    ["frame_before","Before"],["incident_frame","Impact"],
+    ["frame_after","After"],["vehicle_crop","Vehicle"],
+  ].filter(([k]) => ev[k]);
+  if(ident && ident.evidence_image) shots.push(["__plate","Plate"]);
+
+  const strip = shots.length ? `<div class="evidence-strip">${
+    shots.map(([k,l]) => {
+      const path = k === "__plate" ? ident.evidence_image : ev[k];
+      return `<figure><a href="/evidence/${encodeURI(path)}" target="_blank" rel="noopener">
+        <img loading="lazy" src="/evidence/${encodeURI(path)}" alt="${esc(l)}"></a>
+        <figcaption>${esc(l)}</figcaption></figure>`;
+    }).join("")
+    }${ev.clip ? `<figure><video src="/evidence/${encodeURI(ev.clip)}" controls muted></video>
+        <figcaption>Clip</figcaption></figure>` : ""}</div>`
+    : empty("No evidence frames stored","Evidence capture is switched off in the config for this run.");
+
+  return `<div class="detail">
+    <div class="grid" style="gap:12px">
+      ${card(`${title(i.event_type)} — investigation`, facts)}
+      ${card("Evidence", strip)}
+    </div>
+    <div class="grid" style="gap:12px">
+      ${card("State timeline", steps)}
+      ${card("Vehicle event history", table(
+        ["Time","Event","Conf","Detail"], d.related_events||[],
+        e => `<td class="mono">${clock(e.timestamp)}</td>
+              <td>${title(e.event_type)}</td>
+              <td class="num">${(+e.confidence||0).toFixed(2)}</td>
+              <td>${esc((meta(e).registration_number) || (meta(e).evidence||"").slice(0,48) || "–")}</td>`),
+        {pad:false})}
+    </div>
+  </div>`;
+}
+
+/* ---------------------------------------------- Hit-and-run */
+views.hitrun = async () => {
+  const rows = await api("/hit-and-run?limit=100");
+  if(!rows.length){
+    return card("Hit-and-run alerts", empty(
+      "No hit-and-run detected",
+      "This is the correct output for footage without a crash. A hit-and-run requires a "
+      + "confirmed collision followed by a sustained departure from the incident point — "
+      + "a vehicle merely disappearing never qualifies."));
+  }
+  const cards = rows.map((r,i) => {
+    const m = meta(r);
+    return `<div class="kpi crit" style="cursor:pointer" data-hr="${i}">
+      <div class="k">⛔ Hit-and-run · ${esc(m.status||"suspected")}${m.synthetic?' · <span class="tag synthetic">SYNTHETIC</span>':""}</div>
+      <div class="v" style="font-size:18px">${esc(m.registration_number || "plate pending")}</div>
+      <div class="n">track #${m.vehicle_track_id ?? r.track_id} · ${esc(r.class_name||"")}
+        · conf ${(+r.confidence||0).toFixed(2)} · ${stamp(r.timestamp)}</div>
+    </div>`;
+  }).join("");
+  return synthBanner(rows) + `<div class="kpis">${cards}</div>
+    <div id="hrDetail" style="margin-top:12px"></div>`;
+};
+views.hitrun.after = async () => {
+  const rows = await api("/hit-and-run?limit=100");
+  document.querySelectorAll("[data-hr]").forEach(el => {
+    el.onclick = () => openIncident(rows[+el.dataset.hr], "#hrDetail");
+  });
+  if(rows.length) openIncident(rows[0], "#hrDetail");
+};
+
+/* ---------------------------------------------- ANPR */
+views.anpr = async () => {
+  const [reads, vehicles] = await Promise.all([api("/anpr?limit=200"), api("/vehicles?limit=200")]);
+  const unknown = reads.filter(r => (meta(r).registration_number || "UNKNOWN") === "UNKNOWN").length;
+  return `<div class="kpis">
+      ${kpi("Plates attempted", reads.length, "one per identification request", "acc")}
+      ${kpi("Read successfully", reads.length - unknown, "above the confidence threshold", "ok")}
+      ${kpi("Reported UNKNOWN", unknown, "never a guessed number", unknown?"med":"")}
+      ${kpi("Vehicles on file", vehicles.length, "with an incident attached")}
+    </div>
+    <div style="margin-top:12px">
+    ${card("Identification results", table(
+      ["Time","Registration","Conf","Track","Class","Triggered by","Frames","Evidence"], reads,
+      r => { const m = meta(r); const plate = m.registration_number || "UNKNOWN";
+        return `<td class="mono">${stamp(r.timestamp)}</td>
+          <td class="mono"><b style="color:${plate==="UNKNOWN"?"var(--ink-3)":"var(--ink)"}">${esc(plate)}</b></td>
+          <td class="num">${(+r.confidence||0).toFixed(2)}</td>
+          <td class="mono">#${r.track_id ?? "–"}</td>
+          <td>${esc(r.class_name||"–")}</td>
+          <td>${title(m.triggered_by_event_type||"–")}</td>
+          <td class="num">${m.frames_used ?? "–"}</td>
+          <td>${thumb(r.evidence_image,"plate")}</td>`; }), {pad:false,
+      right: unknown ? `${unknown} low-confidence read${unknown>1?"s":""} shown as UNKNOWN` : ""})}
+    </div>`;
+};
+
+/* ---------------------------------------------- Traffic */
+views.traffic = async () => {
+  const [rows, an, hm] = await Promise.all([
+    api("/traffic?limit=400"), api("/analytics"), api("/heatmap")]);
+  const obs = rows.filter(r => r.event_type === "traffic_observation");
+  const latest = obs[0] ? meta(obs[0]) : {};
+  const counts = obs.map(r => ({t: vtime(r.video_time_s), v: meta(r).vehicle_count}));
+  const density = obs.map(r => ({t: vtime(r.video_time_s), v: meta(r).density_percentage}));
+  const levels = {};
+  obs.forEach(r => { const l = meta(r).traffic_level || "LOW"; levels[l] = (levels[l]||0)+1; });
+
+  return `<div class="kpis">
+      ${kpi("Latest vehicle count", latest.vehicle_count, "in the last observation", "acc")}
+      ${kpi("Traffic level", latest.traffic_level || "–", `density ${pct(latest.density_percentage)}`,
+            latest.traffic_level==="CRITICAL"?"crit":latest.traffic_level==="HIGH"?"high":"ok")}
+      ${kpi("Congestion events", (an.events_by_type||{}).traffic_congestion || 0, "sustained over the threshold", "med")}
+      ${kpi("Bottlenecks", (an.events_by_type||{}).traffic_bottleneck || 0, "zone-level stalls")}
+      ${kpi("Unique vehicles", latest.unique_vehicles, "seen so far this run")}
+      ${kpi("Road segments", an.segments, "with traffic samples")}
+    </div>
+    <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin-top:12px">
+      ${card("Vehicle count per observation", lineChart(counts))}
+      ${card("Density %", lineChart(density, {unit:"%"}))}
+    </div>
+    <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);margin-top:12px">
+      ${card("Observations by traffic level", barChart(Object.entries(levels)))}
+      ${card("Road segments", table(
+        ["Segment","Samples","Avg vehicles","Avg density","Congested","Peak level","Incidents","Defects"],
+        (hm.segments||[]),
+        s => `<td class="mono">${esc(s.road_segment)}</td>
+              <td class="num">${s.samples}</td>
+              <td class="num">${num(s.avg_vehicle_count)}</td>
+              <td class="num">${pct(s.avg_density_percentage)}</td>
+              <td class="num">${pct((s.congested_ratio||0)*100)}</td>
+              <td>${esc(s.max_traffic_level||"–")}</td>
+              <td class="num">${s.incident_count||0}</td>
+              <td class="num">${s.defect_count||0}</td>`), {pad:false})}
+    </div>
+    <div style="margin-top:12px">
+    ${card("Congestion and bottleneck events", table(
+      ["Time","Type","Level","Vehicles","Duration","Delay","Bottleneck","Segment"],
+      rows.filter(r => r.event_type !== "traffic_observation"),
+      r => { const m = meta(r); return `
+        <td class="mono">${stamp(r.timestamp)}</td>
+        <td>${title(r.event_type)}</td>
+        <td>${esc(m.traffic_level||"–")}</td>
+        <td class="num">${num(m.vehicle_count)}</td>
+        <td class="num">${m.congestion_duration!=null?`${num(m.congestion_duration)}s`:"–"}</td>
+        <td class="num">${m.estimated_delay!=null?`${num(m.estimated_delay)} min`:"–"}</td>
+        <td class="num">${num(m.bottleneck_score)}</td>
+        <td class="mono">${esc(r.road_segment||"–")}</td>`; }), {pad:false})}
+    </div>`;
+};
+
+/* ---------------------------------------------- Road assets */
+let roadFilter = "all";
+views.road = async () => {
+  const rows = await api("/road-defects?limit=400");
+  const kinds = [...new Set(rows.map(r => r.class_name))].filter(Boolean).sort();
+  const shown = roadFilter === "all" ? rows : rows.filter(r => r.class_name === roadFilter);
+  const chips = [["all","All"], ...kinds.map(k => [k, title(k)])]
+    .map(([v,l]) => `<button class="btn ${roadFilter===v?"on":""}" data-r="${esc(v)}">${esc(l)}</button>`).join("");
+  const counts = {};
+  rows.forEach(r => counts[r.class_name] = (counts[r.class_name]||0)+1);
+
+  return `<div class="filters"><span class="lbl">Defect type</span>${chips}
+      <span class="lbl" style="margin-left:auto">${shown.length} of ${rows.length}</span></div>
+    <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1.6fr)">
+      ${card("Detections by class", barChart(Object.entries(counts).sort((a,b)=>b[1]-a[1])))}
+      ${card("Locations", `<div id="map"></div>`, {pad:false})}
+    </div>
+    <div style="margin-top:12px">
+    ${card("Road infrastructure register", table(
+      ["Time","Class","Severity","Conf","Issue","Priority","Department","Segment","Location","Evidence"], shown,
+      r => `<td class="mono">${stamp(r.timestamp)}</td>
+            <td>${title(r.class_name)}</td>
+            <td>${sev(r.severity)}</td>
+            <td class="num">${(+r.confidence||0).toFixed(2)}</td>
+            <td>${r.issue_id?`<span class="id">${esc(r.issue_id)}</span>`:"–"}</td>
+            <td class="num">${r.priority_score!=null?(+r.priority_score).toFixed(0):"–"}</td>
+            <td>${esc(r.department||"–")}</td>
+            <td class="mono">${esc(r.road_segment||"–")}</td>
+            <td class="mono">${gps(r)}</td>
+            <td>${thumb(r.evidence_image, r.class_name)}</td>`), {pad:false})}
+    </div>`;
+};
+views.road.after = async () => {
+  document.querySelectorAll("[data-r]").forEach(b => b.onclick = () => { roadFilter = b.dataset.r; render(); });
+  const rows = await api("/road-defects?limit=400");
+  const shown = roadFilter === "all" ? rows : rows.filter(r => r.class_name === roadFilter);
+  renderMap("map", eventMarkers(shown));
+};
+
+/* ---------------------------------------------- Issues */
+views.issues = async () => {
+  const rows = await api("/issues?limit=300");
+  return card("Persistent issues", table(
+    ["Issue","Type","Status","Severity","First seen","Last seen","Obs","Buses","Priority","Department"], rows,
+    i => `<td><span class="id">${esc(i.issue_id)}</span></td>
+          <td>${title(i.issue_type)}</td>
+          <td><span class="tag">${esc(i.status)}</span></td>
+          <td>${sev(i.severity)}</td>
+          <td class="mono">${stamp(i.first_seen)}</td>
+          <td class="mono">${stamp(i.last_seen)}</td>
+          <td class="num">${i.observation_count}</td>
+          <td class="num">${i.bus_count}</td>
+          <td class="num">${(+i.priority_score||0).toFixed(0)} <span class="tag">${esc(i.priority_band||"")}</span></td>
+          <td>${esc(i.department||"–")}</td>`,
+    {onclick:true}), {pad:false, right:`${rows.length} tracked`})
+    + `<div id="issueDetail" style="margin-top:12px"></div>`;
+};
+views.issues.after = async () => {
+  const rows = await api("/issues?limit=300");
+  document.querySelectorAll("tbody tr.clickable").forEach(tr => {
+    tr.onclick = async () => {
+      const issue = rows[+tr.dataset.idx];
+      const host = $("#issueDetail");
+      host.innerHTML = card("Issue detail", loading(3), {pad:false});
+      try{
+        const d = await api(`/issues/${encodeURIComponent(issue.issue_id)}`, {fresh:true});
+        host.innerHTML = `<div class="detail">
+          ${card(`${d.issue_id} — ${title(d.issue_type)}`, `<dl class="kv">
+            <dt>Status</dt><dd><span class="tag">${esc(d.status)}</span> ${sev(d.severity)}</dd>
+            <dt>Observed</dt><dd>${d.observation_count} times by ${d.bus_count} bus(es): ${esc((d.buses||[]).join(", "))}</dd>
+            <dt>First seen</dt><dd class="mono">${stamp(d.first_seen)}</dd>
+            <dt>Last seen</dt><dd class="mono">${stamp(d.last_seen)}</dd>
+            <dt>Clean passes</dt><dd>${d.clean_passes} (repair verification)</dd>
+            <dt>Reopened</dt><dd>${d.reopened_count} time(s)</dd>
+            <dt>Priority</dt><dd>${(+d.priority_score||0).toFixed(1)} · ${esc(d.priority_band||"")}</dd>
+            <dt>Routed to</dt><dd>${esc(d.department||"–")}</dd>
+            <dt>Location</dt><dd class="mono">${gps(d)} · ${esc(d.road_segment||"")}</dd>
+          </dl>`)}
+          ${card("Observation history", table(["Time","Bus","Conf","Evidence"], d.observations||[],
+            o => `<td class="mono">${stamp(o.timestamp)}</td><td class="mono">${esc(o.bus_id||"–")}</td>
+                  <td class="num">${(+o.confidence||0).toFixed(2)}</td><td>${thumb(o.evidence_image)}</td>`),
+            {pad:false})}
+        </div>`;
+      }catch(e){ host.innerHTML = card("Issue detail", errorBox(e)); }
+    };
+  });
+};
+
+/* ---------------------------------------------- Map */
+views.map = async () => {
+  const ev = await api("/events?limit=600");
+  const located = eventMarkers(ev);
+  return `<div class="filters"><span class="lbl">Layers</span>
+      ${["all","incident","hit_and_run","road_defect","traffic"].map(k =>
+        `<button class="btn ${mapLayerFilter===k?"on":""}" data-m="${k}">${title(k)}</button>`).join("")}
+      <span class="lbl" style="margin-left:auto">${located.length} located events</span></div>
+    ${card("Geographic view", `<div id="mapFull"></div>
+      <div class="legend">
+        <span><i style="background:#D93A3F"></i>Critical</span>
+        <span><i style="background:#D2622A"></i>High</span>
+        <span><i style="background:#B4740A"></i>Medium</span>
+        <span><i style="background:#188556"></i>Low</span>
+        <span><i style="background:#5E6B7D"></i>Info</span>
+        <span style="color:var(--ink-3)">marker size marks hit-and-run alerts</span>
+      </div>`, {pad:false})}`;
+};
+let mapLayerFilter = "all";
+views.map.after = async () => {
+  document.querySelectorAll("[data-m]").forEach(b => b.onclick = () => { mapLayerFilter = b.dataset.m; render(); });
+  const ev = await api("/events?limit=600");
+  let markers = eventMarkers(ev);
+  if(mapLayerFilter !== "all") markers = markers.filter(m => m.kind === mapLayerFilter);
+  renderMap("mapFull", markers);
+};
+
+/* ---------------------------------------------- Analytics */
+views.analytics = async () => {
+  const an = await api("/analytics");
+  const sevOrder = ["CRITICAL","HIGH","MEDIUM","LOW","INFO"];
+  const bySev = sevOrder.filter(s => (an.events_by_severity||{})[s])
+    .map(s => [s, an.events_by_severity[s]]);
+  return `<div class="kpis">
+      ${kpi("Events", an.events_total, "all modules", "acc")}
+      ${kpi("Issues", an.issues_total, "after deduplication")}
+      ${kpi("Segments", an.segments, "road segments observed")}
+      ${kpi("Buses reporting", Object.keys(an.events_by_bus||{}).length, "fleet coverage")}
+    </div>
+    <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin-top:12px">
+      ${card("Events by type", barChart(Object.entries(an.events_by_type||{}).sort((a,b)=>b[1]-a[1])))}
+      ${card("Events by severity", barChart(bySev, {color:"var(--high)"}))}
+    </div>
+    <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin-top:12px">
+      ${card("Issues routed to departments", table(["Department","Issues"],
+        Object.entries(an.issues_by_department||{}).sort((a,b)=>b[1]-a[1]),
+        r => `<td>${esc(r[0])}</td><td class="num">${r[1]}</td>`), {pad:false})}
+      ${card("Priority bands", table(["Band","Issues"],
+        Object.entries(an.issues_by_priority_band||{}),
+        r => `<td><span class="tag">${esc(r[0])}</span></td><td class="num">${r[1]}</td>`), {pad:false})}
+    </div>
+    <div style="margin-top:12px">
+      ${card("Events per bus", barChart(Object.entries(an.events_by_bus||{}).sort((a,b)=>b[1]-a[1])))}
+    </div>`;
+};
+
+/* ---------------------------------------------- Civic News & Feed */
+views.news = async () => {
+  const [data, quota] = await Promise.all([
+    api("/news?limit=100", {fresh: true}),
+    api("/quota", {fresh: true}).catch(() => null),
+  ]);
+  const posts = data.posts || [];
+  const hits = posts.filter(p => p.kw_hit).length;
+  const qApify = quota && quota.services && quota.services.apify ? `${quota.services.apify.remaining_today}/${quota.services.apify.daily_limit} calls left` : "Protected";
+
+  return `<div class="kpis">
+      ${kpi("News & Social Posts", posts.length, "in database cache", "acc")}
+      ${kpi("Transport Matches", hits, "matched civic keywords")}
+      ${kpi("Free-Tier Guard", "ACTIVE", "unlimited news RSS")}
+      ${kpi("Apify Credit Budget", qApify, "$5/mo credits preserved")}
+    </div>
+    <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:9px 13px;margin-top:12px;font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:8px">
+      <span>🛡️</span>
+      <span><b>Free-Tier Exhaustion Protection:</b> Continuous auto-sync relies on <b>Google News RSS</b> (token-free & unlimited). Cloud actors (Apify, YouTube API) are capped by <code>FreeTierProtector</code> so your free credits never deplete.</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:12px;margin-bottom:12px">
+      <button class="btn on" id="syncNewsBtn" style="cursor:pointer">⚡ Sync Recent Updates Now</button>
+      <span style="font-size:12px;color:var(--ink-3)">Auto-syncs latest Google News & civic reports linked with transport keywords</span>
+    </div>
+    ${card("Recent Synced Reports", table(
+      ["When", "Source", "Keywords", "Report / Snippet", "Link"],
+      posts,
+      p => `<td><span class="mono">${esc(stamp(p.posted_at))}</span></td>
+            <td><span class="tag">${esc(p.source)}</span></td>
+            <td>${p.kw_hit ? `<span class="tag" style="background:#E6F4EA;color:#137333;font-weight:600">✓ Transport Hit</span>` : `<span class="tag">Other</span>`}</td>
+            <td><b>${esc(p.text)}</b></td>
+            <td>${p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener" class="tag" style="color:#1449B0;text-decoration:none;font-weight:600">Open ↗</a>` : "–"}</td>`
+    ), {pad:false})}`;
+};
+views.news.after = () => {
+  const btn = $("#syncNewsBtn");
+  if(btn){
+    btn.onclick = async () => {
+      btn.disabled = true;
+      btn.textContent = "Syncing recent updates...";
+      try {
+        const res = await api("/news/sync", {fresh: true, method: "POST"});
+        toast("News Sync Complete", `Added ${res.added} new articles (${res.skipped_duplicates} duplicates skipped)`);
+        clearCache();
+        await render();
+      } catch(e) {
+        toast("Sync Failed", e.message, "err");
+        btn.disabled = false;
+        btn.textContent = "⚡ Sync Recent Updates Now";
+      }
+    };
+  }
+};
+
+/* ==================================================================
+   6.  Router + chrome
+   ================================================================== */
+const SUBTITLE = {
+  dashboard:"Fleet-wide situational overview",
+  live:"Annotated detection output with a synchronised event feed",
+  map:"Every located event on one map",
+  incidents:"Collision, rash driving and hit-and-run register",
+  hitrun:"Hit-and-run investigation",
+  anpr:"Plate identification requested by incidents only",
+  traffic:"Congestion, density and route analytics",
+  road:"Potholes, damage, dividers, crossings, signage, waterlogging",
+  issues:"Deduplicated issues tracked across buses and passes",
+  analytics:"Breakdowns across the whole dataset",
+  news:"Recent civic, transport & incident news updates synchronized via scraper.py",
+};
+
+function buildNav(counts={}){
+  const nav = $("#nav");
+  nav.innerHTML = ROUTES.map(r => {
+    const g = r.group ? `<div class="nav-group">${esc(r.group)}</div>` : "";
+    const n = counts[r.badge];
+    const pill = n ? `<span class="pill ${r.badge==="hitrun"?"alert":""}">${n}</span>` : "";
+    return `${g}<a href="#${r.id}" data-r="${r.id}"><span class="ico">${r.ico}</span>
+      <span class="lbl">${esc(r.label)}</span>${pill}</a>`;
+  }).join("");
+  markNav();
+}
+function markNav(){
+  const id = current();
+  document.querySelectorAll("nav a").forEach(a =>
+    a.classList.toggle("on", a.dataset.r === id));
+}
+const current = () => (location.hash || "#dashboard").slice(1).split("?")[0];
+
+async function render(){
+  const id = current();
+  const view = views[id] ? id : "dashboard";
+  $("#viewTitle").textContent = ROUTES.find(r => r.id === view)?.label || "Dashboard";
+  $("#viewSub").textContent = SUBTITLE[view] || "";
+  markNav();
+  const host = $("#view");
+  host.innerHTML = card(" ", loading(6), {pad:false});
+  try{
+    host.innerHTML = await views[view]();
+    if(views[view].after) await views[view].after();
+  }catch(e){
+    host.innerHTML = card("Error", errorBox(e));
+    toast("Request failed", e.message, "err");
+  }
+}
+
+async function refreshHealth(){
+  try{
+    const h = await api("/health", {fresh:true});
+    $("#healthDot").classList.remove("bad");
+    $("#healthText").textContent =
+      `backend online · ${h.events} events · ${h.issues} issues`;
+    const t = h.events_by_type || {};
+    const incidents = ["collision","possible_collision","hit_and_run","rash_driving","abnormal_movement"]
+      .reduce((a,k) => a + (t[k]||0), 0);
+    buildNav({incidents, hitrun: t.hit_and_run || 0, defects: t.road_defect || 0});
+    $("#sideFoot").textContent = `${h.events} events · ${h.issues} issues`;
+    return h;
+  }catch(e){
+    $("#healthDot").classList.add("bad");
+    $("#healthText").textContent = "backend unreachable";
+    buildNav();
+    throw e;
+  }
+}
+
+let autoTimer = null;
+$("#autoBtn").onclick = () => {
+  if(autoTimer){
+    clearInterval(autoTimer); autoTimer = null;
+    $("#autoBtn").textContent = "Auto-refresh: off";
+    $("#autoBtn").classList.remove("on");
+  }else{
+    autoTimer = setInterval(() => { clearCache(); refreshHealth().catch(()=>{}); render(); }, 10000);
+    $("#autoBtn").textContent = "Auto-refresh: 10s";
+    $("#autoBtn").classList.add("on");
+    toast("Auto-refresh enabled", "Reloading every 10 seconds", "ok");
+  }
+};
+$("#refreshBtn").onclick = async () => {
+  clearCache();
+  await refreshHealth().catch(() => {});
+  await render();
+  toast("Refreshed", "", "ok");
+};
+window.addEventListener("hashchange", render);
+
+(async function start(){
+  buildNav();
+  try{
+    await refreshHealth();
+  }catch(e){
+    $("#view").innerHTML = card("Backend unreachable", `<div class="errorbox">
+      <strong>The dashboard cannot reach the API.</strong><br>
+      Start it with <code class="mono">python run_backend.py</code>, then reload.<br><br>
+      <span style="color:var(--ink-3)">${esc(e.message)}</span></div>`);
+    return;
+  }
+  await render();
+})();
+</script>
+</body>
+</html>
